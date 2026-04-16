@@ -7,7 +7,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://127.0.0.1:3306/city_guide?useSSL=false&serverTimezone=UTC
     username: root
-    password: *********
+    password: *******
   redis:
     host: 127.0.0.1
     port: 6379
