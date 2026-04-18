@@ -16,7 +16,7 @@ import javax.servlet.http.HttpSession;
 
 /**
  * <p>
- * 前端控制器
+ *  前端控制器
  * </p>
  *
  * @Cookie-coder
@@ -57,13 +57,13 @@ public class UserController {
      */
     @PostMapping("/logout")
     public Result logout(){
-        // TODO 实现登出功能
-        return Result.fail("功能未完成");
+        //  实现登出功能
+        return Result.fail("功能未开发");
     }
 
     @GetMapping("/me")
     public Result me(){
-        // 获取当前登录的旅行者并返回
+        // 获取当前登录的用户并返回
         UserDTO traveler = TravelerContext.getTraveler();
         return Result.ok(traveler);
     }

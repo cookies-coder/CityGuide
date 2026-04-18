@@ -1,13 +1,22 @@
 package com.city.guide.interceptor;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.StrUtil;
+import com.city.guide.dto.Result;
 import com.city.guide.dto.UserDTO;
 import com.city.guide.utils.TravelerContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static com.city.guide.utils.RedisConstants.LOGIN_USER_KEY;
+import static com.city.guide.utils.RedisConstants.LOGIN_USER_TTL;
 import static com.city.guide.utils.SystemConstants.SESSION_USER_KEY;
 
 /**
@@ -15,37 +24,50 @@ import static com.city.guide.utils.SystemConstants.SESSION_USER_KEY;
  * 职责：验证旅行者登录状态，并实现旅行者信息在当前线程的透传
  */
 public class AuthInterceptor implements HandlerInterceptor {
+    private final StringRedisTemplate stringRedisTemplate;
+    public AuthInterceptor(StringRedisTemplate stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
+    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // 1. 获取会话容器
-        HttpSession session = request.getSession();
-
-        // 2. 尝试从会话中提取脱敏后的旅行者信息
-        Object traveler = session.getAttribute(SESSION_USER_KEY);
-
-        // 3. 拦截逻辑：若旅行者未登录，返回 401 状态码（未授权）并阻断后续业务执行
-        if (traveler == null) {
-            // 这里采用 401 状态码是遵循 RESTful 规范，通知前端引导至登录页
+        // 1. 去请求头里拿 Token（前端发请求时带过来的身份证）
+        String token = request.getHeader("Authorization");
+        if (StrUtil.isBlank(token)) {
+            // 没带 Token 肯定没登录，直接拦截
             response.setStatus(401);
             return false;
         }
 
-        // 4. 线程安全处理：将旅行者信息注入 TravelerContext
-        // 利用 ThreadLocal 机制，确保在多线程环境下，后续的 Service 层能方便且安全地获取当前登录人
-        TravelerContext.saveTraveler((UserDTO) traveler);
+        // 2. 拿着 Token 去 Redis 里查查有没有对应的用户信息
+        String key = LOGIN_USER_KEY + token;
+        Map<Object, Object> userMap = stringRedisTemplate.opsForHash().entries(key);
 
-        // 5. 放行
+        // 3. 判断 Redis 里有没有这个用户
+        if (userMap.isEmpty()) {
+            // 查不到说明登录过期了或者 Token 是假的
+            response.setStatus(401);
+            return false;
+        }
+
+        // 4. 把从 Redis 拿到的 Map 重新转回成 UserDTO 对象
+        UserDTO userDTO = BeanUtil.fillBeanWithMap(userMap, new UserDTO(), false);
+
+        // 5. 把用户信息存进 ThreadLocal里
+        // 这样在后面的 Controller 或 Service 里，不用传参就能直接拿到当前登录人的信息，非常方便
+        TravelerContext.saveTraveler(userDTO);
+
+        // 6. 只要用户还在操作，就给 Redis 里的 Token 刷新 30 分钟
+        stringRedisTemplate.expire(key, LOGIN_USER_TTL, TimeUnit.MINUTES);
+
+        // 7. 全部通过
         return true;
     }
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
-        /*
-         * 资源清理：在请求结束后，必须移除 ThreadLocal 中的数据。
-         * 核心原因：Tomcat 采用线程池机制，若不手动清理，当前线程在处理下一个请求时可能携带旧旅行者信息，
-         * 从而导致内存泄漏或严重的业务数据错乱问题。
-         */
+        // 请求走完了，一定要把 ThreadLocal 里的用户信息删掉
+        // 因为 Tomcat 的线程是会重复利用的，如果不删，下一个人用这个线程时可能会看到你的信息，那就乱套了
         TravelerContext.removeTraveler();
     }
 }

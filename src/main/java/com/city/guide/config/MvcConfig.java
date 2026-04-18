@@ -20,11 +20,7 @@ public class MvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(new AuthInterceptor())
                 .excludePathPatterns(
                         "/spot/**",
-                        "/ticket/**",
-                        "/ticket-order/**",
                         "/spot-type/**",
-                        "/upload/**",
-                        "/guide-note/hot",
                         "/user/code",
                         "/user/login"
                 );
