@@ -17,6 +17,11 @@ spring:
         max-idle: 10
         min-idle: 1
         time-between-eviction-runs: 10s
+        # Redisson 配置
+  redisson:
+    config: |
+    singleServerConfig:
+    address: "redis://127.0.0.1:6379"
   jackson:
     default-property-inclusion: non_null # JSON处理时忽略非空字段
 mybatis-plus:
