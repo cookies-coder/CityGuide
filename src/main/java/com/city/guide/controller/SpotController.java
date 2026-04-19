@@ -57,9 +57,7 @@ public class SpotController {
      */
     @PutMapping
     public Result updateSpot(@RequestBody Spot spot) {
-        // 写入数据库
-        spotService.updateById(spot);
-        return Result.ok();
+        return spotService.updata(spot);
     }
 
     /**

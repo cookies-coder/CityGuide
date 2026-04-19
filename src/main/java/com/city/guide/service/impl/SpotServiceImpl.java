@@ -9,10 +9,14 @@ import com.city.guide.mapper.SpotMapper;
 import com.city.guide.service.ISpotService;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 
+import java.util.concurrent.TimeUnit;
+
 import static com.city.guide.utils.RedisConstants.CACHE_SPOT_KEY;
+import static com.city.guide.utils.RedisConstants.CACHE_SPOT_TTL;
 
 /**
  * <p>
@@ -58,10 +62,26 @@ public class SpotServiceImpl extends ServiceImpl<SpotMapper, Spot> implements IS
         }
 
         // 5. 缓存重建：将数据库查询到的真实数据写入 Redis
-        // 这里采用简单的 SET 操作
-        stringRedisTemplate.opsForValue().set(CACHE_SPOT_KEY + id, JSONUtil.toJsonStr(spot));
+        // 这里采用简单的 SET 操作,并且设置滞留时间
+        stringRedisTemplate.opsForValue().set(CACHE_SPOT_KEY + id, JSONUtil.toJsonStr(spot),CACHE_SPOT_TTL, TimeUnit.MINUTES  );
 
         // 6. 最终返回数据
         return Result.ok(spot);
+    }
+
+    @Override
+    @Transactional
+    public Result updata(Spot spot) {
+        Long id = spot.getId();
+        // 判断景点id是否为空
+        if(id == null){
+            return Result.fail("数据错误，景点id不可为空");
+        }
+        // 先更新数据库的数据
+        updateById(spot);
+       //再删除缓存
+        stringRedisTemplate.delete(CACHE_SPOT_KEY + id);
+        return Result.ok();
+
     }
 }

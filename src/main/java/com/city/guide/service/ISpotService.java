@@ -16,4 +16,6 @@ public interface ISpotService extends IService<Spot> {
 
 
     Result queryById(Long id);
+
+    Result updata(Spot spot);
 }
