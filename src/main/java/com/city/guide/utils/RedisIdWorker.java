@@ -37,7 +37,7 @@ public class RedisIdWorker {
      * 生成全局唯一ID
      * 
      * @param businessType
-     * @return 64位全局唯一ID（long类型）
+     * @return 64位全局唯一ID
      */
     public long nextId(String businessType) {
         // 1. 计算相对时间戳（当前秒数 - 起始秒数）
