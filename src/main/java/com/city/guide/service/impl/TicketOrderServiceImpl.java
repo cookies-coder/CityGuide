@@ -12,12 +12,19 @@ import com.city.guide.utils.RedisIdWorker;
 import com.city.guide.utils.SimpleRedisLock;
 import com.city.guide.utils.TravelerContext;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static com.city.guide.utils.RedisConstants.LIMITED_PERFORMANCE_STOCK_KEY;
 
@@ -32,12 +39,21 @@ import static com.city.guide.utils.RedisConstants.LIMITED_PERFORMANCE_STOCK_KEY;
 @Slf4j
 @Service
 public class TicketOrderServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrder> implements ITicketOrderService {
+    private static final DefaultRedisScript<Long> TICKET_SCRIPT;
+    static {
+        TICKET_SCRIPT = new DefaultRedisScript<>();
+        TICKET_SCRIPT.setLocation(new ClassPathResource("Ticket.lua"));
+        TICKET_SCRIPT.setResultType(Long.class);
+    }
+    
     @Resource
     private ILimitedPerformanceTicketService limitedPerformanceTicketService;
     @Resource
     private RedisIdWorker redisIdWorker;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private RedissonClient redissonClient;
 
     @Override
     public Result seckillTicket(Long ticketId) {
@@ -67,9 +83,10 @@ public class TicketOrderServiceImpl extends ServiceImpl<TicketOrderMapper, Ticke
         // 5. 一人一单判断
         Long userId = TravelerContext.getTraveler().getId();
         //创建锁对象
-        SimpleRedisLock lock = new SimpleRedisLock("cg:user:order:" + userId, stringRedisTemplate);
+        //SimpleRedisLock lock = new SimpleRedisLock("cg:user:order:" + userId, stringRedisTemplate);
+        RLock lock = redissonClient.getLock("cg:user:order:" + userId);
         //获取锁
-        boolean isLocked = lock.tryLock(1200);
+        boolean isLocked = lock.tryLock();
         if (!isLocked) {
             return Result.fail("用户已经购买过该门票");
         }
@@ -86,6 +103,34 @@ public class TicketOrderServiceImpl extends ServiceImpl<TicketOrderMapper, Ticke
             lock.unlock();
         }
 
+        // 1. 执行lua脚本
+        Long result = stringRedisTemplate.execute(
+                TICKET_SCRIPT,
+                Collections.emptyList(),
+                ticketId.toString(),
+                userId.toString()
+        );
+        
+        // 2. 判断结果是否为0
+        if (result != 0) {
+            // 2.1. 不为0，代表没有购买资格
+            if (result == 1L) {
+                return Result.fail("库存不足");
+            } else if (result == 2L) {
+                return Result.fail("用户已经购买过该门票");
+            } else {
+                return Result.fail("抢票失败");
+            }
+        }
+        
+        // 2.2. 为0，有购买资格，把下单信息保存到阻塞队列
+        // TODO: 这里需要将下单信息保存到阻塞队列，例如使用Redis List或消息队列
+        TicketOrder ticketOrder = createTicketOrder(userId, ticketId);
+        
+        log.info("用户抢票成功，用户ID: {}, 门票ID: {}, 订单ID: {}", userId, ticketId, ticketOrder.getId());
+        return Result.ok(ticketOrder.getId());
+        
+        /*
         // 6. 扣减库存
         String stockKey = LIMITED_PERFORMANCE_STOCK_KEY + ticketId;
         Boolean success = stringRedisTemplate.opsForValue().decrement(stockKey) >= 0;
@@ -100,6 +145,7 @@ public class TicketOrderServiceImpl extends ServiceImpl<TicketOrderMapper, Ticke
         
         log.info("用户抢票成功，用户ID: {}, 门票ID: {}, 订单ID: {}", userId, ticketId, ticketOrder.getId());
         return Result.ok(ticketOrder.getId());
+        */
     }
 
     @Transactional
