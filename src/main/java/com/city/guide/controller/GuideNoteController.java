@@ -42,6 +42,11 @@ public class GuideNoteController {
 
         return guideNoteService.likeNote(id);
     }
+    @PutMapping("/likes/{id}")
+    public Result queryNoteLikes(@PathVariable("id") Long id) {
+
+        return guideNoteService.queryNoteLikes(id);
+    }
 
     @GetMapping("/of/me")
     public Result queryMyGuideNote(@RequestParam(value = "current", defaultValue = "1") Integer current) {

@@ -22,4 +22,6 @@ public interface IGuideNoteService extends IService<GuideNote> {
     Result queryGuideNoteById(Long id);
 
     Result likeNote(Long id);
+
+    Result queryNoteLikes(Long id);
 }

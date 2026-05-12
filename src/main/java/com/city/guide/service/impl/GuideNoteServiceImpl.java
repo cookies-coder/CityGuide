@@ -1,6 +1,8 @@
 package com.city.guide.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.BooleanUtil;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.city.guide.dto.Result;
@@ -18,6 +20,8 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -30,8 +34,6 @@ import java.util.List;
 @Service
 public class GuideNoteServiceImpl extends ServiceImpl<GuideNoteMapper, GuideNote> implements IGuideNoteService {
     @Resource
-    private IGuideNoteService guideNoteService;
-    @Resource
     private IUserService userService;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
@@ -39,7 +41,7 @@ public class GuideNoteServiceImpl extends ServiceImpl<GuideNoteMapper, GuideNote
     @Override
     public Result queryHotGuideNote(int current) {
         // 根据点赞数查询
-        Page<GuideNote> page = guideNoteService.query()
+        Page<GuideNote> page = this.query()
                 .orderByDesc("liked")
                 .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 获取当前页数据
@@ -57,7 +59,7 @@ public class GuideNoteServiceImpl extends ServiceImpl<GuideNoteMapper, GuideNote
         UserDTO traveler = TravelerContext.getTraveler();
         guideNote.setUserId(traveler.getId());
         // 保存旅行笔记
-        guideNoteService.save(guideNote);
+        this.save(guideNote);
         // 返回id
         return guideNote.getId();
     }
@@ -67,7 +69,7 @@ public class GuideNoteServiceImpl extends ServiceImpl<GuideNoteMapper, GuideNote
         // 获取登录旅行者
         UserDTO traveler = TravelerContext.getTraveler();
         // 根据旅行者查询
-        Page<GuideNote> page = guideNoteService.query()
+        Page<GuideNote> page = this.query()
                 .eq("user_id", traveler.getId()).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 获取当前页数据
         List<GuideNote> records = page.getRecords();
@@ -81,7 +83,7 @@ public class GuideNoteServiceImpl extends ServiceImpl<GuideNoteMapper, GuideNote
     @Override
     public Result queryGuideNoteById(Long id) {
         //查询旅行笔记
-        GuideNote guideNote = guideNoteService.getById(id);
+        GuideNote guideNote = this.getById(id);
         if (guideNote == null) {
             return Result.fail("旅行笔记不存在");
         }
@@ -100,10 +102,15 @@ public class GuideNoteServiceImpl extends ServiceImpl<GuideNoteMapper, GuideNote
     }
 
     private void isNoteLiked(GuideNote guideNote) {
-        Long userId = TravelerContext.getTraveler().getId();
+        UserDTO userDTO = TravelerContext.getTraveler();
+        if (userDTO == null) {
+            // 用户未登录，无法判断是否点赞
+            return;
+        }
+        Long userId = userDTO.getId();
         String key = "cg:like:note:" + guideNote.getId();
-        Boolean isLiked = stringRedisTemplate.opsForSet().isMember(key, userId.toString());
-        guideNote.setIsLike(BooleanUtil.isTrue(isLiked));
+        Double score = stringRedisTemplate.opsForZSet().score(key, userId.toString());
+        guideNote.setIsLike(score != null);
     }
 
     @Override
@@ -112,23 +119,44 @@ public class GuideNoteServiceImpl extends ServiceImpl<GuideNoteMapper, GuideNote
         Long userId = TravelerContext.getTraveler().getId();
         // 判断用户是否已点赞
         String key = "cg:like:note:" + id;
-        Boolean isLiked = stringRedisTemplate.opsForSet().isMember(key, userId.toString());
-        if(BooleanUtil.isFalse(isLiked)){
+        Double score = stringRedisTemplate.opsForZSet().score(key, userId.toString());
+        if(score == null){
             //点赞数加1且将用户id加入Redis集合
             Boolean isadd=update().setSql("liked = liked + 1").eq("id", id).update();
             if(isadd){
-                stringRedisTemplate.opsForSet().add(key, userId.toString());
+                stringRedisTemplate.opsForZSet().add(key, userId.toString(), System.currentTimeMillis());
             }
         }
-        else if(BooleanUtil.isTrue(isLiked)){
+        else {
             //点赞数减1且将用户id从Redis集合中移除
             Boolean isremove=update().setSql("liked = liked - 1").eq("id", id).update();
             if(isremove){
-                stringRedisTemplate.opsForSet().remove(key, userId.toString());
+                stringRedisTemplate.opsForZSet().remove(key, userId.toString());
             }
         }
         return Result.ok();
 
+    }
+
+    @Override
+    public Result queryNoteLikes(Long id) {
+        //查询排行前五的用户
+        String key = "cg:like:note:" + id;
+        Set<String> Top5 = stringRedisTemplate.opsForZSet().reverseRange(key, 0, 4);
+        if (Top5 == null || Top5.isEmpty()) {
+            return Result.ok(Collections.emptyList());
+        }
+       //解析其中的用户id
+        List<Long> userIds = Top5.stream().map(Long::valueOf).collect(Collectors.toList());
+        //通过用户id查询用户
+        String idStr = StrUtil.join(",", userIds);
+        List<UserDTO> userDtos=userService.query()
+                .in("id", userIds)
+                .last("ORDER BY FIELD(id, " + idStr + ")").list()
+                .stream()
+                .map(user -> BeanUtil.copyProperties(user, UserDTO.class))
+                .collect(Collectors.toList());
+        return Result.ok(userDtos);
     }
 
 
