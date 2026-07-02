@@ -1,0 +1,16 @@
+# Maven
+target/
+*.class
+*.jar
+*.war
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# JMeter test report
+Aggregate Report.jmx

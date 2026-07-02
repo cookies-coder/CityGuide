@@ -7,7 +7,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://127.0.0.1:3306/city_guide?useSSL=false&serverTimezone=UTC
     username: root
-    password: *******
+    password: jyl123456jyl
   redis:
     host: 127.0.0.1
     port: 6379
@@ -20,8 +20,8 @@ spring:
         # Redisson 配置
   redisson:
     config: |
-    singleServerConfig:
-    address: "redis://127.0.0.1:6379"
+      singleServerConfig:
+        address: "redis://127.0.0.1:6379"
   jackson:
     default-property-inclusion: non_null # JSON处理时忽略非空字段
 mybatis-plus:
