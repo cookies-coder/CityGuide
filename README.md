@@ -1,132 +1,94 @@
-# CityGuide - 城市文旅导览平台
+CityGuide - 城市文旅导览平台
+这是我正在开发的城市文旅导览平台。我希望做一个能真正帮游客快速找到景点、查看游记的系统。目前项目已经完成了所有核心功能的开发。
 
-基于黑马点评重构的城市文旅导览平台，作为 Java 实习求职的核心简历项目。相比原黑马点评，延伸了布隆过滤器、景点打卡、Top5 点赞排行榜、Lua 秒杀 + Stream 消息队列等自研模块。
+技术栈：Spring Boot 2.3.12 / Java 8 / MyBatis-Plus 3.4.3 / MySQL 8.0 / Redis (Lettuce + Redisson) / Hutool / Lombok
+端口：8081，数据库：city_guide
 
-> **技术栈：** Spring Boot 2.3.12 + Java 8 + MyBatis-Plus 3.4.3 + MySQL 8.0 + Redis (Lettuce + Redisson) + Hutool + Lombok
->
-> **端口：** 8081 | **数据库：** city_guide | **前端：** Vue 3 + Vite（D:\CityGuidevue3）
+目前已经实现的功能
 
----
+1. 用户登录系统
+   手机号验证码登录：编写正则校验以确保手机号格式正确。验证码存放在 Redis 中（2分钟过期），实现了基本的登录和注册逻辑，新用户首次登录自动创建账号。
 
-## 功能模块总览
+   双拦截器体系：编写了两个拦截器，分别用于刷新 Token 状态（自动续期30分钟）和校验访问权限（无 Token 返回401）。
 
-### 1. 🏛️ 用户登录系统
+   Redis 状态管理：使用 Redis 缓存用户登录状态（Token），替代传统的 HttpSession，支持多实例部署和高性能读写。
 
-- **手机号验证码登录**：正则校验 + Redis 存储验证码（2min TTL），验证码直接打印控制台模拟发送
-- **双拦截器体系**：
-  - `AuthInterceptor` — 权限校验，无 Token 返回 401
-  - `RefreshTokenInterceptor` — 自动刷新 Token 过期时间
-- **Redis Hash 存储用户状态**（30min TTL），`TravelerContext` ThreadLocal 上下文透传
-- **登出功能**：删除 Redis 中 Token 对应的用户信息，Token 立即失效
-- **自动注册**：新用户首次登录自动创建账号
+   登出功能：删除 Redis 中 Token 对应的用户信息，Token 立即失效。
 
-### 2. 🏔️ 景点模块
+2. 景点模块
+   分类展示：支持按不同类型（如自然风光、历史古迹）筛选查看景点。
 
-- **分类展示**：按 `SpotType` 筛选景点
-- **详情查询**：Cache-Aside 缓存策略（30min TTL）+ **Redis 布隆过滤器**防缓存穿透
-- **坐标转换**：GCJ-02 → BD-09，查询时自动转换
-- **搜索**：按景点名称关键字模糊搜索
+   详情查询：支持点击景点查看详细信息。
 
-### 3. ❤️ 收藏功能
+   Redis 缓存优化：针对频繁查询的景点信息引入 Redis 缓存，大幅提升了系统的响应速度。
 
-- MySQL + Redis Set **双写一致性**，O(1) 收藏状态判断
-- `@Transactional` 事务保障，MyBatis-Plus 分页多表关联查询
+   缓存一致性策略：采用 Cache-Aside 模式。更新数据库后，立即删除对应缓存，保证后续查询能从数据库中加载最新数据。
 
-### 4. 💬 景点评论
+   布隆过滤器防穿透：在项目启动时将数据库中所有景点 ID 批量加载到布隆过滤器中。查询时对于布隆过滤器判断为不存在的景点 ID，直接返回空结果，避免请求穿透缓存直接打到数据库。
 
-- 缓存优先（10min TTL），发布新评论时自动失效缓存
-- `idx_spot_time` 复合索引（spot_id, create_time DESC）
-- 最新 5 条展示
+   坐标转换：支持 GCJ-02 转 BD-09 坐标系，查询时自动转换。
 
-### 5. 📝 游记笔记 + 点赞
+   搜索：支持按景点名称关键字模糊搜索。
 
-- **发布/查询笔记**（分页），支持图片上传
-- **Top5 点赞排行榜**：Redis ZSet 实现（score = 毫秒时间戳），倒序排列最新点赞用户
-- **点赞状态联动**：查询笔记时自动填充 `isLike` 字段
-- **热门笔记**：按点赞数排行
+3. 收藏功能模块
+   用户收藏：支持用户一键收藏感兴趣的景点，并查看个人收藏夹。
 
-### 6. 📍 景点打卡
+   Redis 缓存一致性：为保证收藏状态判断的高并发性能，采用了 MySQL + Redis 双写模式。
 
-- Redisson 分布式锁防重复打卡
-- 缓存优先（30min TTL），连续打卡天数计算
-- `idx_user_spot` 复合索引
+   写操作：添加或取消收藏时，先更新数据库，再同步更新 Redis Set 缓存，确保数据最终一致性。
 
-### 7. 🎫 限定表演票秒杀（亮点模块）
+   读操作：判断是否收藏时直接访问 Redis，极大提升响应速度，减轻数据库压力。
 
-- **Lua 脚本原子操作**：`Ticket.lua` 一次性完成库存检查、扣减、下单
-- **Redis Stream 消息队列**：Lua 脚本执行成功后通过 `XADD` 将订单消息推入 Stream
-- **异步消费者**：`@PostConstruct` 启动独立线程消费 Stream 消息，创建数据库订单
-- **Pending 消息补偿**：消费者重启后先处理未 ACK 的历史消息
-- **重试机制**：失败自动重试（最多 3 次），超限标记为 FAIL
-- **一人一单**：数据库唯一索引 + Redis Set 双重保障
-- **Redis 预扣库存** + 数据库最终扣减（`stock > 0` 乐观锁）
-- **前端轮询**：秒杀结果通过 Redis String 返回（成功=orderId，失败=FAIL）
+   业务逻辑优化：分页查询通过 MyBatis-Plus 分页插件配合多表关联查询，实现景点详细信息的展示。使用 @Transactional 注解，确保收藏动作在数据库操作异常时能够自动回滚。
 
-### 8. 👥 社交互动
+4. 景点评论模块
+   评论发布：用户登录后可对指定景点发表评价，支持选择体验标签（如：风景好、性价比高）。
 
-- **关注/取关**：FollowController + FollowService 完整实现
-- **笔记评论**：NoteCommentController + NoteCommentService 完整实现
+   评论展示：在景点详情页自动加载该景点最新的 5 条用户评价，按时间倒序排列。
 
-### 9. 🖼️ 文件上传 + 用户信息
+   Redis 缓存优化：查询优先从 Redis 读取，缓存未命中再查询数据库，缓存时长 10 分钟。发布新评论时自动删除对应景点的评论缓存。
 
-- UploadController 文件上传
-- UserInfo 实体/Mapper/Service 完整实现
+   数据库索引：利用 cg_spot_comment 表的 idx_spot_time 复合索引（spot_id, create_time DESC），提升查询效率。
 
----
+5. 游记笔记点赞模块
+   点赞排行榜（Top5 Likers）：基于 Redis ZSet 实现最新点赞的 5 位用户实时榜单，score 使用毫秒时间戳，保证按点赞时间倒序排列。
 
-## 🔧 技术亮点
+   点赞状态联动查询：在查询单条游记笔记时，自动填充当前登录用户是否已点赞（isLike: true/false），支持前端按钮状态高亮。
 
-| 技术 | 应用场景 |
-|:----|:--------|
-| **布隆过滤器** | 景点查询防缓存穿透，启动时加载所有景点 ID |
-| **Redisson 分布式锁** | 打卡防重复、秒杀防重复下单 |
-| **Lua 脚本** | 秒杀原子操作，避免竞态条件 |
-| **Redis Stream** | 异步订单处理消息队列，支持 Pending 补偿 |
-| **Redis ZSet** | 点赞排行榜（毫秒时间戳 score） |
-| **Redis Set** | 收藏状态 / 秒杀已购记录 O(1) 判断 |
-| **Cache-Aside 模式** | 景点缓存，更新数据库后删除缓存 |
-| **双拦截器架构** | 权限校验 + Token 自动续期分离 |
-| **MyBatis-Plus 分页** | 景点/评论/收藏/笔记列表 |
+   热门笔记：按点赞数排行展示。
 
----
+6. 景点打卡模块
+   打卡记录：用户到达景点后可进行签到打卡，记录旅行足迹。
 
-## 📊 数据库表（13张）
+   打卡列表：支持分页查看个人打卡历史，包含打卡时间、景点信息等。
 
-```
-cg_user          cg_user_info        cg_spot          cg_spot_type
-cg_spot_comment  cg_user_favorite    cg_guide_note    cg_note_comment
-cg_check_in      cg_ticket           cg_limited_performance_ticket
-cg_ticket_order  cg_follow
-```
+   Redis 缓存优化：查询优先从 Redis 读取，缓存未命中再查询数据库，缓存时长 30 分钟。新增打卡记录时自动删除用户打卡缓存。
 
----
+   并发控制：基于 Redisson 分布式锁保证同一用户在同一景点的并发打卡请求不会产生重复数据。
 
-## 🗃️ Redis 键设计
+   数据库索引：利用 cg_check_in 表的 idx_user_spot 复合索引（user_id, spot_id），提升查询效率。
 
-```
-cg:login:code:{phone}              — 验证码 String (2min)
-cg:login:token:{token}             — 登录态 Hash (30min)
-cg:spot:cache:{id}                 — 景点缓存 String (30min)
-cg:use:favorite:{userId}           — 收藏 Set
-cg:like:note:{noteId}              — 点赞 ZSet
-cg:checkin:{userId}:{spotId}       — 打卡缓存
-cg:limited_performance:stock:{id}  — 秒杀库存 String
-cg:ticket:order:stream             — 订单 Stream
-cg:ticket:order:result:{u}:{t}     — 秒杀结果 String
-cg:follows:{userId}                — 关注 Set
-spot-id-filter                     — 布隆过滤器
-```
+7. 限定表演票抢购模块
+   票种管理：支持创建限定表演票，设置票量、价格、抢购时间等。
 
----
+   Lua 脚本化秒杀：通过 Lua 脚本在 Redis 中一次性完成库存检查、扣减和下单，避免竞态条件。库存严格校验，确保不超卖。
 
-## 📐 架构示意
+   异步订单处理：Lua 脚本执行成功后通过 Redis Stream 消息队列 XADD 推送订单消息，后端独立消费者线程异步创建数据库订单。
 
-```
-前端 (Vue 3) → /api 代理 → 后端 (8081)
-                              ├─ AuthInterceptor (Token 校验)
-                              ├─ Service 层
-                              │   ├─ Redis (缓存 / 布隆 / ZSet / Set)
-                              │   ├─ Lua (秒杀原子操作)
-                              │   └─ Stream → 异步消费者 → MySQL
-                              └─ MySQL (13张表)
-```
+   消息补偿机制：消费者启动时先处理 Pending 未 ACK 的历史消息，确保崩溃重启后不丢消息。处理失败自动重试最多 3 次。
+
+   一人一单：数据库唯一索引（user_id + ticket_id）配合 Redis Set 双重保障，防止重复下单。
+
+   全局唯一订单 ID：使用 RedisIdWorker 生成，确保分布式环境下的订单号不重复。
+
+   前端轮询：秒杀结果通过 Redis 返回，成功返回订单 ID，失败返回 FAIL。
+
+8. 社交互动模块
+   关注与取关：完整的关注/取关功能，支持查看关注列表和粉丝列表。
+
+   笔记评论：对游记笔记进行评论，支持评论列表展示。
+
+9. 文件上传与用户信息
+   文件上传：支持图片等文件上传。
+
+   用户信息：完整的用户信息管理，包含昵称、头像等。
