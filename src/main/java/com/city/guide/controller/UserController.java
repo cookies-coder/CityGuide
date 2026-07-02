@@ -9,10 +9,14 @@ import com.city.guide.service.IUserInfoService;
 import com.city.guide.service.IUserService;
 import com.city.guide.utils.TravelerContext;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
+
+import static com.city.guide.utils.RedisConstants.LOGIN_USER_KEY;
 
 /**
  * <p>
@@ -32,6 +36,9 @@ public class UserController {
 
     @Resource
     private IUserInfoService userInfoService;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     /**
      * 发送手机验证码
@@ -56,9 +63,14 @@ public class UserController {
      * @return 无
      */
     @PostMapping("/logout")
-    public Result logout(){
-        //  实现登出功能
-        return Result.fail("功能未开发");
+    public Result logout(HttpServletRequest request){
+        // 1. 从请求头获取 Token
+        String token = request.getHeader("Authorization");
+        if (token != null) {
+            // 2. 删除 Redis 中该 Token 对应的用户信息，Token 立即失效
+            stringRedisTemplate.delete(LOGIN_USER_KEY + token);
+        }
+        return Result.ok();
     }
 
     @GetMapping("/me")

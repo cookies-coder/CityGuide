@@ -6,10 +6,13 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.city.guide.dto.Result;
 import com.city.guide.entity.Spot;
 import com.city.guide.service.ISpotService;
+import com.city.guide.utils.Gcj02ToBd09Converter;
 import com.city.guide.utils.SystemConstants;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -75,8 +78,17 @@ public class SpotController {
         Page<Spot> page = spotService.query()
                 .eq("type_id", typeId)
                 .page(new Page<>(current, SystemConstants.DEFAULT_PAGE_SIZE));
+        
+        // 为每个景点转换坐标
+        List<Spot> spotList = page.getRecords().stream().map(spot -> {
+            double[] bdCoord = Gcj02ToBd09Converter.gcj02ToBd09(spot.getX(), spot.getY());
+            spot.setBdX(bdCoord[0]);
+            spot.setBdY(bdCoord[1]);
+            return spot;
+        }).collect(Collectors.toList());
+        
         // 返回数据
-        return Result.ok(page.getRecords());
+        return Result.ok(spotList);
     }
 
     /**
@@ -94,7 +106,16 @@ public class SpotController {
         Page<Spot> page = spotService.query()
                 .like(StrUtil.isNotBlank(name), "name", name)
                 .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
+        
+        // 为每个景点转换坐标
+        List<Spot> spotList = page.getRecords().stream().map(spot -> {
+            double[] bdCoord = Gcj02ToBd09Converter.gcj02ToBd09(spot.getX(), spot.getY());
+            spot.setBdX(bdCoord[0]);
+            spot.setBdY(bdCoord[1]);
+            return spot;
+        }).collect(Collectors.toList());
+        
         // 返回数据
-        return Result.ok(page.getRecords());
+        return Result.ok(spotList);
     }
 }

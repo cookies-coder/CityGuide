@@ -35,13 +35,13 @@ public class TicketController {
     }
 
     /**
-     * 新增限时优惠门票
-     * @param ticket 门票信息，包含限时优惠信息
+     * 新增限定表演票
+     * @param ticket 门票信息，包含限定表演票信息
      * @return 门票id
      */
-    @PostMapping("limited-offer")
-    public Result addLimitedOfferTicket(@RequestBody Ticket ticket) {
-        ticketService.addLimitedOfferTicket(ticket);
+    @PostMapping("limited-performance")
+    public Result addLimitedPerformanceTicket(@RequestBody Ticket ticket) {
+        ticketService.addLimitedPerformanceTicket(ticket);
         return Result.ok(ticket.getId());
     }
 

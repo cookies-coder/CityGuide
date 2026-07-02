@@ -33,12 +33,12 @@ public class CheckInServiceImpl extends ServiceImpl<CheckInMapper, CheckIn> impl
         LocalDate today = LocalDate.now();
         
         // 3. 检查今天是否已经打卡
-        Long count = lambdaQuery()
+        Integer count = lambdaQuery()
                 .eq(CheckIn::getUserId, userId)
                 .eq(CheckIn::getDate, today)
                 .count();
         
-        if (count > 0) {
+        if (count != null && count > 0) {
             return Result.fail("今天已经打卡过了");
         }
         
@@ -82,13 +82,13 @@ public class CheckInServiceImpl extends ServiceImpl<CheckInMapper, CheckIn> impl
         Long userId = TravelerContext.getTraveler().getId();
         
         // 2. 统计总打卡次数
-        Long totalCount = lambdaQuery()
+        Integer totalCount = lambdaQuery()
                 .eq(CheckIn::getUserId, userId)
                 .count();
         
         // 3. 统计本月打卡次数
         LocalDate today = LocalDate.now();
-        Long monthCount = lambdaQuery()
+        Integer monthCount = lambdaQuery()
                 .eq(CheckIn::getUserId, userId)
                 .eq(CheckIn::getYear, today.getYear())
                 .eq(CheckIn::getMonth, today.getMonthValue())
@@ -117,12 +117,12 @@ public class CheckInServiceImpl extends ServiceImpl<CheckInMapper, CheckIn> impl
         for (int i = 0; i <= 365; i++) {
             LocalDate checkDate = today.minusDays(i);
             
-            Long count = lambdaQuery()
+            Integer count = lambdaQuery()
                     .eq(CheckIn::getUserId, userId)
                     .eq(CheckIn::getDate, checkDate)
                     .count();
             
-            if (count > 0) {
+            if (count != null && count > 0) {
                 continuousDays++;
             } else {
                 break;

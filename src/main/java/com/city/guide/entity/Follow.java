@@ -1,6 +1,7 @@
 package com.city.guide.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -21,8 +22,8 @@ import java.time.LocalDateTime;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("cg_user")
-public class User implements Serializable {
+@TableName("cg_follow")
+public class Follow implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -33,24 +34,14 @@ public class User implements Serializable {
     private Long id;
 
     /**
-     * 手机号码
+     * 用户id
      */
-    private String phone;
+    private Long userId;
 
     /**
-     * 密码，加密存储
+     * 关联的用户id
      */
-    private String password;
-
-    /**
-     * 昵称，默认是随机字符
-     */
-    private String nickName;
-
-    /**
-     * 用户头像
-     */
-    private String icon = "";
+    private Long followUserId;
 
     /**
      * 创建时间
@@ -58,10 +49,15 @@ public class User implements Serializable {
     private LocalDateTime createTime;
 
     /**
-     * 更新时间
+     * 被关注用户昵称（非数据库字段，联查填充）
      */
-    private LocalDateTime updateTime;
+    @TableField(exist = false)
+    private String followUserNickName;
 
+    /**
+     * 被关注用户头像（非数据库字段，联查填充）
+     */
+    @TableField(exist = false)
+    private String followUserIcon;
 
 }
-

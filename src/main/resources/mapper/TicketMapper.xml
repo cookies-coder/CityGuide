@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.city.guide.mapper.TicketMapper">
+
+    <select id="queryTicketOfSpot" resultType="com.city.guide.entity.Ticket" parameterType="java.lang.Long">
+        SELECT
+            t.`id`, t.`spot_id`, t.`title`, t.`sub_title`, t.`rules`, t.`pay_value`,
+            t.`actual_value`, t.`type`, t.`status`, lt.`stock`, lt.begin_time, lt.end_time
+        FROM cg_ticket t
+        LEFT JOIN cg_limited_performance_ticket lt ON t.id = lt.ticket_id
+        WHERE t.spot_id = #{spotId} AND t.status = 1
+    </select>
+</mapper>

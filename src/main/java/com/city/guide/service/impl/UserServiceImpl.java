@@ -24,9 +24,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static com.city.guide.utils.RedisConstants.*;
-import static com.city.guide.utils.SystemConstants.LOGIN_CODE_KEY;
-import static com.city.guide.utils.SystemConstants.SESSION_USER_KEY;
-
 
 /**
  * <p>
@@ -43,7 +40,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
-
     @Override
     public Result sendCode(String phone, HttpSession session) {
         // 1. 检查手机号对不对，不对直接打回
@@ -55,12 +51,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         // 2. 生成6位数字随机验证码
         String dynamicCode = RandomUtil.randomNumbers(6);
 
-        // 3. 把验证码存到 Redis 缓存里
-        // Key 加了前缀方便区分，设置了过期时间（比如2分钟），到期自动删除
-        stringRedisTemplate.opsForValue().set(LOGIN_CODE_KEY + phone, dynamicCode, LOGIN_CODE_TTL, TimeUnit.MINUTES);
+        // 3. 先在控制台打印验证码（放 Redis 前面，方便排查问题）
+        log.info("【验证码通知】手机号：{}，验证码：{}，有效期：2分钟", phone, dynamicCode);
 
-        // 4. 在控制台打印一下，模拟发短信了
-        log.debug("==> [验证码通知] 手机号: {}, 验证码: {}, 请在2分钟内使用", phone, dynamicCode);
+        // 4. 把验证码存到 Redis 缓存里
+        stringRedisTemplate.opsForValue().set(LOGIN_CODE_KEY + phone, dynamicCode, LOGIN_CODE_TTL, TimeUnit.MINUTES);
 
         // 5. 把验证码传回前端
         return Result.ok(dynamicCode);
@@ -113,8 +108,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         return Result.ok(token);
     }
 
-
-
     private User initNewUser(String phone) {
         User newUser = new User();
         newUser.setPhone(phone);
@@ -126,4 +119,3 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         return newUser;
     }
 }
-

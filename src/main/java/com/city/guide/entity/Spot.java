@@ -106,4 +106,10 @@ public class Spot implements Serializable {
 
     @TableField(exist = false)
     private Double distance;
+
+    @TableField(exist = false)
+    private Double BdX;
+
+    @TableField(exist = false)
+    private Double BdY;
 }

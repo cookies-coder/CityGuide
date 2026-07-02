@@ -1,13 +1,9 @@
 package com.city.guide.controller;
 
-
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.city.guide.dto.Result;
-import com.city.guide.dto.UserDTO;
 import com.city.guide.entity.GuideNote;
-import com.city.guide.entity.User;
 import com.city.guide.service.IGuideNoteService;
-import com.city.guide.service.IUserService;
 import com.city.guide.utils.SystemConstants;
 import com.city.guide.utils.TravelerContext;
 import org.springframework.web.bind.annotation.*;
@@ -30,7 +26,6 @@ public class GuideNoteController {
     @Resource
     private IGuideNoteService guideNoteService;
 
-
     @PostMapping
     public Result saveGuideNote(@RequestBody GuideNote guideNote) {
         Long id = guideNoteService.saveGuideNote(guideNote);
@@ -42,6 +37,7 @@ public class GuideNoteController {
 
         return guideNoteService.likeNote(id);
     }
+
     @PutMapping("/likes/{id}")
     public Result queryNoteLikes(@PathVariable("id") Long id) {
 

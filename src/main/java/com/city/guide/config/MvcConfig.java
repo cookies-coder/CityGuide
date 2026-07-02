@@ -17,7 +17,7 @@ public class MvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // 登录拦截器
-        registry.addInterceptor(new AuthInterceptor())
+        registry.addInterceptor(new AuthInterceptor(stringRedisTemplate))
                 .excludePathPatterns(
                         "/spot/**",
                         "/spot-type/**",

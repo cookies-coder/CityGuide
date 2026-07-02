@@ -1,5 +1,6 @@
 package com.city.guide.service.impl;
 
+import com.city.guide.utils.Gcj02ToBd09Converter;
 import org.redisson.api.RBloomFilter;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
@@ -60,6 +61,10 @@ public class SpotServiceImpl extends ServiceImpl<SpotMapper, Spot> implements IS
         if (StrUtil.isNotBlank(spotJson)) {
             // 缓存命中直接反序列化并返回，极大地减轻了 MySQL 数据库的查询压力
             Spot spot = JSONUtil.toBean(spotJson, Spot.class);
+            // 进行坐标转换，确保返回百度坐标系数据
+            double[] bdCoord = Gcj02ToBd09Converter.gcj02ToBd09(spot.getX(), spot.getY());
+            spot.setBdX(bdCoord[0]);
+            spot.setBdY(bdCoord[1]);
             return Result.ok(spot);
         }
 
@@ -75,6 +80,11 @@ public class SpotServiceImpl extends ServiceImpl<SpotMapper, Spot> implements IS
         //  缓存重建：将数据库查询到的真实数据写入 Redis
         // 这里采用简单的 SET 操作,并且设置滞留时间
         stringRedisTemplate.opsForValue().set(CACHE_SPOT_KEY + id, JSONUtil.toJsonStr(spot),CACHE_SPOT_TTL, TimeUnit.MINUTES  );
+        // 拿到 spot 对象后
+        // 调用工具类，根据现有的 x, y 算出百度的坐标
+        double[] bdCoord = Gcj02ToBd09Converter.gcj02ToBd09(spot.getX(), spot.getY());
+        spot.setBdX(bdCoord[0]); // 赋值给临时字段
+        spot.setBdY(bdCoord[1]);
 
         //  最终返回数据
         return Result.ok(spot);

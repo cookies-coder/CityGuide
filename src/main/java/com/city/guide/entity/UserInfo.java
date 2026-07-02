@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
 
 import java.io.Serializable;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -16,41 +17,61 @@ import java.time.LocalDateTime;
  * </p>
  *
  * @Cookie-coder
- * 
+ * @since 2021-12-24
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("cg_user")
-public class User implements Serializable {
+@TableName("cg_user_info")
+public class UserInfo implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     /**
-     * 主键
+     * 主键，用户id
      */
-    @TableId(value = "id", type = IdType.AUTO)
-    private Long id;
+    @TableId(value = "user_id", type = IdType.AUTO)
+    private Long userId;
 
     /**
-     * 手机号码
+     * 城市名称
      */
-    private String phone;
+    private String city;
 
     /**
-     * 密码，加密存储
+     * 个人介绍，不要超过128个字符
      */
-    private String password;
+    private String introduce;
 
     /**
-     * 昵称，默认是随机字符
+     * 粉丝数量
      */
-    private String nickName;
+    private Integer fans;
 
     /**
-     * 用户头像
+     * 关注的人的数量
      */
-    private String icon = "";
+    private Integer followee;
+
+    /**
+     * 性别，0：男，1：女
+     */
+    private Boolean gender;
+
+    /**
+     * 生日
+     */
+    private LocalDate birthday;
+
+    /**
+     * 积分
+     */
+    private Integer credits;
+
+    /**
+     * 会员级别，0~9级,0代表未开通会员
+     */
+    private Boolean level;
 
     /**
      * 创建时间

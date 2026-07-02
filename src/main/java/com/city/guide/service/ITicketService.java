@@ -16,5 +16,5 @@ public interface ITicketService extends IService<Ticket> {
 
     Result queryTicketOfSpot(Long spotId);
 
-    void addLimitedOfferTicket(Ticket ticket);
+    void addLimitedPerformanceTicket(Ticket ticket);
 }
